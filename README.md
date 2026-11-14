@@ -12,6 +12,9 @@ npx skills add Thlookingatyou/codex-quota-optimizer --skill codex-quota-optimize
 
 Or clone this repository and run `bash install.sh`. This copies the skill into `${CODEX_HOME:-$HOME/.codex}/skills`, appends the repository's lifecycle instructions to global `AGENTS.md` if absent, and registers the optional local MCP server in `config.toml`. Review these files before installing. Windows users can use Git Bash, or copy `skills/codex-quota-optimizer` into their Codex skills directory manually.
 
+For a native PowerShell walkthrough with a dependency-free demo and quoted paths,
+see [Try the skill on Windows](docs/WINDOWS_POWERSHELL.md).
+
 ## Read telemetry
 
 ```sh
