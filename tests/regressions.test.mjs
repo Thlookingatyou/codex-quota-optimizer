@@ -17,6 +17,49 @@ test('fixture: fresh values and relative/absolute resets age from event timestam
   assert.equal(snap.primary_window.resets_in_seconds, 4080);
   assert.equal(snap.secondary_window.resets_in_seconds, 259080);
 });
+for (const envelope of ['payload', 'top-level', 'msg']) {
+  for (const windowAliases of [false, true]) {
+    test(`synthetic aliases: ${envelope}, ${windowAliases ? 'primary_window/secondary_window' : 'primary/secondary'}`, () => {
+      const { primary, secondary } = fixture.payload.rate_limits;
+      const limits = {
+        plan_type: 'plus',
+        limit_id: 'codex',
+        [windowAliases ? 'primary_window' : 'primary']: primary,
+        [windowAliases ? 'secondary_window' : 'secondary']: secondary,
+      };
+      const event = { timestamp: fixture.timestamp };
+      if (envelope === 'top-level') event.rate_limits = limits;
+      else event[envelope] = { rate_limits: limits };
+
+      const snap = parseRolloutJsonlContent(JSON.stringify(event), 'synthetic.jsonl', now);
+      assert.equal(snap.captured_at, fixture.timestamp);
+      assert.deepEqual(snap.primary_window, {
+        window_minutes: 300,
+        used_percent: 87.5,
+        observed_used_percent: 87.5,
+        resets_in_seconds: 4080,
+        telemetry_status: 'fresh',
+      });
+      assert.deepEqual(snap.secondary_window, {
+        window_minutes: 10080,
+        used_percent: 58,
+        observed_used_percent: 58,
+        resets_in_seconds: 259080,
+        telemetry_status: 'fresh',
+      });
+
+      const otherLimits = { ...limits, limit_id: 'other-model' };
+      const otherEvent = { timestamp: '2026-11-05T00:00:00Z' };
+      if (envelope === 'top-level') otherEvent.rate_limits = otherLimits;
+      else otherEvent[envelope] = { rate_limits: otherLimits };
+      assert.equal(parseRolloutJsonlContent(JSON.stringify(otherEvent), 'synthetic.jsonl', now), null);
+      assert.deepEqual(
+        parseRolloutJsonlContent([event, otherEvent].map(value => JSON.stringify(value)).join('\n'), 'synthetic.jsonl', now),
+        snap,
+      );
+    });
+  }
+}
 test('stale, expired, invalid timestamps and wrong durations stay unknown', () => {
   for (const event of [ { ...fixture, timestamp: 'bad' }, { ...fixture, timestamp: '2020-01-01T00:00:00Z' },
     { ...fixture, payload: { rate_limits: { primary: { used_percent: 5, window_minutes: 60 } } } } ]) {
@@ -50,7 +93,7 @@ test('both CLIs expose unknown telemetry and defer without fabricated budgets', 
 });
 test('invalid overrides and malformed task JSON fail visibly', () => {
   for (const args of [['check_quota.mjs','--5h=NaN'], ['check_quota.mjs','--weekly=-1'], ['optimize_work_plan.mjs','--tasks=bad']]) {
-    assert.notEqual(spawnSync(process.execPath, [dir+args[0], ...args.slice(1)], {encoding:'utf8'}).status, 0);
+    assert.notEqual(spawnSync(process.execPath, [dir+args[0], '--rollout-file=missing-fixture.jsonl', ...args.slice(1)], {encoding:'utf8'}).status, 0);
   }
 });
 test('scheduler guards actual selected cost for weekly-only and .35/.38 gap cases', () => {
